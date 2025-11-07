@@ -66,6 +66,10 @@ class MotionLoader:
 
 
 class MotionCommand(CommandTerm):
+    """
+    Note: Each command term should inherit from CommandTerm, and also has a corresponding configuration class that inherits from CommandTermCfg.
+    Reference: https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#command-manager.
+    """
     cfg: MotionCommandCfg
 
     def __init__(self, cfg: MotionCommandCfg, env: ManagerBasedRLEnv):
@@ -189,6 +193,7 @@ class MotionCommand(CommandTerm):
     def robot_anchor_ang_vel_w(self) -> torch.Tensor:
         return self.robot.data.body_ang_vel_w[:, self.robot_anchor_body_index]
 
+    # Override
     def _update_metrics(self):
         """Compute errors between current and reference motions"""
         self.metrics["error_anchor_pos"] = torch.norm(self.anchor_pos_w - self.robot_anchor_pos_w, dim=-1)
@@ -214,6 +219,7 @@ class MotionCommand(CommandTerm):
         self.metrics["error_joint_vel"] = torch.norm(self.joint_vel - self.robot_joint_vel, dim=-1)
 
     def _adaptive_sampling(self, env_ids: Sequence[int]):
+        # record failed frames
         episode_failed = self._env.termination_manager.terminated[env_ids]
         if torch.any(episode_failed):
             current_bin_index = torch.clamp(
@@ -223,6 +229,7 @@ class MotionCommand(CommandTerm):
             self._current_bin_failed[:] = torch.bincount(fail_bins, minlength=self.bin_count)
 
         # Sample
+        # compute sampling probabilities
         sampling_probabilities = self.bin_failed_count + self.cfg.adaptive_uniform_ratio / float(self.bin_count)
         sampling_probabilities = torch.nn.functional.pad(
             sampling_probabilities.unsqueeze(0).unsqueeze(0),
@@ -232,7 +239,7 @@ class MotionCommand(CommandTerm):
         sampling_probabilities = torch.nn.functional.conv1d(sampling_probabilities, self.kernel.view(1, 1, -1)).view(-1)
 
         sampling_probabilities = sampling_probabilities / sampling_probabilities.sum()
-
+        # sample the initial frames
         sampled_bins = torch.multinomial(sampling_probabilities, len(env_ids), replacement=True)
 
         self.time_steps[env_ids] = (
@@ -242,6 +249,7 @@ class MotionCommand(CommandTerm):
         ).long()
 
         # Metrics
+        # record entropy for measuring exploration
         H = -(sampling_probabilities * (sampling_probabilities + 1e-12).log()).sum()
         H_norm = H / math.log(self.bin_count)
         pmax, imax = sampling_probabilities.max(dim=0)
@@ -249,7 +257,9 @@ class MotionCommand(CommandTerm):
         self.metrics["sampling_top1_prob"][:] = pmax
         self.metrics["sampling_top1_bin"][:] = imax.float() / self.bin_count
 
+    # Override
     def _resample_command(self, env_ids: Sequence[int]):
+        """Resample the command for the specified environments."""
         if len(env_ids) == 0:
             return
         self._adaptive_sampling(env_ids)
@@ -279,13 +289,16 @@ class MotionCommand(CommandTerm):
         joint_pos[env_ids] = torch.clip(
             joint_pos[env_ids], soft_joint_pos_limits[:, :, 0], soft_joint_pos_limits[:, :, 1]
         )
+        # NOTE The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear and angular velocity. Comparisons between APIs: https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.assets.html#articulation.
         self.robot.write_joint_state_to_sim(joint_pos[env_ids], joint_vel[env_ids], env_ids=env_ids)
         self.robot.write_root_state_to_sim(
             torch.cat([root_pos[env_ids], root_ori[env_ids], root_lin_vel[env_ids], root_ang_vel[env_ids]], dim=-1),
             env_ids=env_ids,
         )
 
+    # Override
     def _update_command(self):
+        """Update the command based on the current state."""
         self.time_steps += 1
         env_ids = torch.where(self.time_steps >= self.motion.time_step_total)[0]
         self._resample_command(env_ids)

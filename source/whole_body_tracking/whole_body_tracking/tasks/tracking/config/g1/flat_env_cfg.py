@@ -10,7 +10,8 @@ class G1FlatEnvCfg(TrackingEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # TrackingEnvCfg contains attribute `scene` (a subclass of InteractiveSceneCfg) which contains a placeholder for ArticulationCfg (`robot`). So when subclassing TrackingEnvCfg this attribute needs to be instantiated as a corresponding robot.
+        self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")  # TODO check value of {ENV_REGEX_NS}
         self.actions.joint_pos.scale = G1_ACTION_SCALE
         self.commands.motion.anchor_body_name = "torso_link"
         self.commands.motion.body_names = [

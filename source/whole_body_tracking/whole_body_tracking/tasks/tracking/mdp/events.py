@@ -1,6 +1,4 @@
-"""
-Implementation of domain randomization terms.
-"""
+"""Implementation of domain randomization terms."""
 
 from __future__ import annotations
 

@@ -1,3 +1,5 @@
+"""The PPO hyperparameters for tracking task using RSL-RL framework."""
+
 from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
 
@@ -9,6 +11,7 @@ class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     save_interval = 500
     experiment_name = "g1_flat"
     empirical_normalization = True
+    # Network architecture
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
         actor_hidden_dims=[512, 256, 128],

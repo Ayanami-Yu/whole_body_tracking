@@ -101,7 +101,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
         robot.write_root_state_to_sim(root_states)
         robot.write_joint_state_to_sim(motion.joint_pos[time_steps], motion.joint_vel[time_steps])
-        scene.write_data_to_sim()
+        scene.write_data_to_sim()  # apply commands into sim
         sim.render()  # We don't want physic (sim.step())
         scene.update(sim_dt)
 

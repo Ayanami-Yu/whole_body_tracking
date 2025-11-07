@@ -230,6 +230,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, joi
 
     # Extract scene entities
     robot = scene["robot"]
+    # Find joints in the articulation based on the name keys
     robot_joint_indexes = robot.find_joints(joint_names, preserve_order=True)[0]
 
     # ------- data logger -------------------------------------------------------

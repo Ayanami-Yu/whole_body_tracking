@@ -104,7 +104,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         art = next((a for a in wandb_run.used_artifacts() if a.type == "motions"), None)
         if art is None:
             print("[WARN] No model artifact found in the run.")
-        else:
+        else:  # load reference motions
             env_cfg.commands.motion.motion_file = str(pathlib.Path(art.download()) / "motion.npz")
 
     else:

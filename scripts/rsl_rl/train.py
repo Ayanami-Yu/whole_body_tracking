@@ -100,6 +100,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     import wandb
 
+    # load motions from WandB
     api = wandb.Api()
     artifact = api.artifact(registry_name)
     env_cfg.commands.motion.motion_file = str(pathlib.Path(artifact.download()) / "motion.npz")
@@ -126,13 +127,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         }
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)
+        # record a video of the environment and save it to the specified directory
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):
         env = multi_agent_to_single_agent(env)
 
-    # wrap around environment for rsl-rl
+    # the wrapper converts the environment into a rsl-rl compatible env
     env = RslRlVecEnvWrapper(env)
 
     # create runner from rsl-rl

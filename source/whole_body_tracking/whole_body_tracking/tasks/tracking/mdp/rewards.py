@@ -1,5 +1,6 @@
 """
 Implementation of the DeepMimic reward functions and smoothing terms.
+A collection of computing functions to be called for each reward term specified in tracking_env_cfg.RewardsCfg.
 """
 
 from __future__ import annotations
@@ -22,12 +23,14 @@ def _get_body_indexes(command: MotionCommand, body_names: list[str] | None) -> l
 
 
 def motion_global_anchor_position_error_exp(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
+    """Computes exponential of the difference between reference and current anchor positions."""
     command: MotionCommand = env.command_manager.get_term(command_name)
     error = torch.sum(torch.square(command.anchor_pos_w - command.robot_anchor_pos_w), dim=-1)
     return torch.exp(-error / std**2)
 
 
 def motion_global_anchor_orientation_error_exp(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
+    """Computes exponential of squared rotation difference between reference and current anchor quaternions."""
     command: MotionCommand = env.command_manager.get_term(command_name)
     error = quat_error_magnitude(command.anchor_quat_w, command.robot_anchor_quat_w) ** 2
     return torch.exp(-error / std**2)
@@ -36,8 +39,9 @@ def motion_global_anchor_orientation_error_exp(env: ManagerBasedRLEnv, command_n
 def motion_relative_body_position_error_exp(
     env: ManagerBasedRLEnv, command_name: str, std: float, body_names: list[str] | None = None
 ) -> torch.Tensor:
+    """Computes error of relative body positions (corresponding to end-effectors such as hands and feet)."""
     command: MotionCommand = env.command_manager.get_term(command_name)
-    body_indexes = _get_body_indexes(command, body_names)
+    body_indexes = _get_body_indexes(command, body_names)  # TODO check body_names corresponding to hands and feet
     error = torch.sum(
         torch.square(command.body_pos_relative_w[:, body_indexes] - command.robot_body_pos_w[:, body_indexes]), dim=-1
     )
@@ -79,7 +83,7 @@ def motion_global_body_angular_velocity_error_exp(
 
 
 def feet_contact_time(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, threshold: float) -> torch.Tensor:
-    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]  # TODO check the list of sensors (sensor_cfg)
     first_air = contact_sensor.compute_first_air(env.step_dt, env.physics_dt)[:, sensor_cfg.body_ids]
     last_contact_time = contact_sensor.data.last_contact_time[:, sensor_cfg.body_ids]
     reward = torch.sum((last_contact_time < threshold) * first_air, dim=-1)

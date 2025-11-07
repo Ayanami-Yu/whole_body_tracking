@@ -1,3 +1,5 @@
+"""The base environment (MDP) hyperparameters configuration for tracking task. Further modified in g1/flat_env_cfg.py."""
+
 from __future__ import annotations
 
 from dataclasses import MISSING
@@ -42,23 +44,25 @@ class MySceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a legged robot."""
 
     # ground terrain
+    # handles terrain meshes and imports them into the simulator
+    # NOTE Adding entities to the scene is sensitive to the order of the attributes in the config. Recommended order: terrain, physics-related assets (articulations and rigid bodies), sensors and non-physics-related assets (lights).
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
-        terrain_type="plane",
+        terrain_type="plane",  # flat plane terrain
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
             static_friction=1.0,
             dynamic_friction=1.0,
-        ),
+        ),  # physics parameters
         visual_material=sim_utils.MdlFileCfg(
             mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
             project_uvw=True,
         ),
     )
     # robots
-    robot: ArticulationCfg = MISSING
+    robot: ArticulationCfg = MISSING  # marks the robot config as required but not provided
     # lights
     light = AssetBaseCfg(
         prim_path="/World/light",
@@ -68,6 +72,8 @@ class MySceneCfg(InteractiveSceneCfg):
         prim_path="/World/skyLight",
         spawn=sim_utils.DomeLightCfg(color=(0.13, 0.13, 0.13), intensity=1000.0),
     )
+    # NOTE {ENV_REGEX_NS} is a special variable that is replaced with the environment name during scene creation. Any entity that has the ENV_REGEX_NS variable in its prim path will be cloned for each environment.
+    # The trailing "." is a regex matching all prims under that Robot subtree.
     contact_forces = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True, force_threshold=10.0, debug_vis=True
     )
@@ -113,9 +119,11 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
+        # Each observation group should inherit from ObservationGroupCfg. Reference: https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#observation-manager.
 
         # observation terms (order preserved)
-        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+        # Each observation term specifies the observation function to call and the noise corruption model to use.
+        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})  # TODO check where generated_commands is located
         motion_anchor_pos_b = ObsTerm(
             func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
         )
@@ -155,6 +163,7 @@ class EventCfg:
     """Configuration for events."""
 
     # startup
+    # NOTE SceneEntityCfg is a helper that points to an entity by name (e.g., "robot") and optionally filters body_names/joint_names via regex.
     physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="startup",
@@ -190,14 +199,18 @@ class EventCfg:
     push_robot = EventTerm(
         func=mdp.push_by_setting_velocity,
         mode="interval",
-        interval_range_s=(1.0, 3.0),
+        interval_range_s=(1.0, 3.0),  # happens randomly every 1–3s
         params={"velocity_range": VELOCITY_RANGE},
     )
 
 
 @configclass
 class RewardsCfg:
-    """Reward terms for the MDP."""
+    """
+    Reward terms for the MDP.
+    Each reward term should instantiate RewardTermCfg.
+    Reference: https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#reward-manager.
+    """
 
     motion_global_anchor_pos = RewTerm(
         func=mdp.motion_global_anchor_position_error_exp,
@@ -229,12 +242,15 @@ class RewardsCfg:
         weight=1.0,
         params={"command_name": "motion", "std": 3.14},
     )
+    # smoothness regularizer
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1e-1)
+    # strong negative penalty applied when joints are close to limits
     joint_limit = RewTerm(
         func=mdp.joint_pos_limits,
         weight=-10.0,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])},
     )
+    # the regex excludes left/right ankle and wrist links from undesired contact penalties
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
         weight=-0.1,
@@ -252,7 +268,11 @@ class RewardsCfg:
 
 @configclass
 class TerminationsCfg:
-    """Termination terms for the MDP."""
+    """
+    Termination terms for the MDP.
+    Each termination term is a function which takes the environment as an argument and returns a boolean tensor of shape (num_envs,).
+    Reference: https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#termination-manager.
+    """
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     anchor_pos = DoneTerm(
@@ -295,6 +315,7 @@ class TrackingEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
+    # 2.5m between envs in the USD stage grid
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
@@ -309,9 +330,11 @@ class TrackingEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
+        # the number of physics substeps (sim) for each policy step (env): 200Hz / 4 = 50Hz
         self.decimation = 4
         self.episode_length_s = 10.0
         # simulation settings
+        # sim step every 5ms: 200Hz
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material

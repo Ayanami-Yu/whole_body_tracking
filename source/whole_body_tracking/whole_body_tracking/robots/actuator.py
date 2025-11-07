@@ -19,6 +19,8 @@ class DelayedImplicitActuator(ImplicitActuator):
     The amount of time lag is configurable and can be set to a random value between the minimum and maximum time
     lag bounds at every reset. The minimum and maximum time lag values are set in the configuration instance passed
     to the class.
+
+    NOTE During simulation step, the articulation class first applies the actuator models to compute the joint commands based on user-specified targets. These joint commands are then applied into the simulation. The joint commands can be either position, velocity, or effort commands. Reference: https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.
     """
 
     cfg: DelayedImplicitActuatorCfg
@@ -64,7 +66,7 @@ class DelayedImplicitActuator(ImplicitActuator):
         control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
         control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
         control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
-        # compte actuator model
+        # compute actuator model
         return super().compute(control_action, joint_pos, joint_vel)
 
 

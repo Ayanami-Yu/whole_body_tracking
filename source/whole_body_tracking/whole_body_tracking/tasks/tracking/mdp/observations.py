@@ -1,6 +1,4 @@
-"""
-Implementation of observation terms for motion tracking and data collection.
-"""
+"""Implementation of observation terms for motion tracking and data collection."""
 
 from __future__ import annotations
 
